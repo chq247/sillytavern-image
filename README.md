@@ -13,6 +13,7 @@
 - `/plus-image <prompt>` 斜杠命令
 - 生成结果自动保存到当前角色或群组图库并插入聊天
 - 连接测试、取消、超时、Base64/图片格式/响应大小校验
+- 配置页支持“自动 / 中文 / English”实时切换，选择会保存在用户设置中
 - 默认只把 CLIProxy key 放在当前页面的内存中，刷新即清除
 - 可选择将 key 明文保存在 SillyTavern 用户设置中
 
@@ -51,8 +52,9 @@ git push -u origin main
 2. 粘贴仓库 Git URL，例如 `https://github.com/<user>/<repo>.git`。
 3. 安装并刷新 SillyTavern 页面。
 4. 打开 **Extensions → CLIProxy Plus Image (Direct)**。
-5. 填写 CLIProxy Base URL、客户端 key，认证选择 `x-api-key`。
-6. 点击 **Test connection**；成功后即可生成。
+5. 可先将 **Interface language / 界面语言** 切换为“中文”。
+6. 填写 CLIProxy Base URL、客户端 key，认证选择 `x-api-key`。
+7. 点击 **测试连接 / Test connection**；成功后即可生成。
 
 Base URL 示例：
 

@@ -1,46 +1,55 @@
 <div id="cli_proxy_image_direct_settings" class="cli_proxy_image_direct_settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b>CLIProxy Plus Image (Direct)</b>
+            <b data-cli-i18n="title">CLIProxy Plus Image (Direct)</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="cli_proxy_image_direct_notice">
+            <label>
+                <span data-cli-i18n="interface_language">Interface language</span>
+                <select id="cli_proxy_image_direct_language" class="text_pole">
+                    <option value="auto" data-cli-i18n="language_auto">Auto</option>
+                    <option value="zh" data-cli-i18n="language_chinese">中文</option>
+                    <option value="en" data-cli-i18n="language_english">English</option>
+                </select>
+            </label>
+
+            <div class="cli_proxy_image_direct_notice" data-cli-i18n="security_notice">
                 This extension sends requests directly from your browser. The API key is visible to browser scripts and DevTools.
                 Use only a revocable CLIProxy client key—never a ChatGPT OAuth token or cookie.
             </div>
 
             <label>
-                <span>CLIProxy Base URL</span>
-                <input id="cli_proxy_image_direct_base_url" class="text_pole" type="url" placeholder="https://proxy.example/v1">
+                <span data-cli-i18n="base_url">CLIProxy Base URL</span>
+                <input id="cli_proxy_image_direct_base_url" class="text_pole" type="url" placeholder="https://proxy.example/v1" data-cli-i18n-placeholder="base_url_placeholder">
             </label>
 
             <div class="cli_proxy_image_direct_grid cli_proxy_image_direct_auth_grid">
                 <label>
-                    <span>Authentication</span>
+                    <span data-cli-i18n="authentication">Authentication</span>
                     <select id="cli_proxy_image_direct_auth_mode" class="text_pole">
-                        <option value="x-api-key">x-api-key (recommended)</option>
-                        <option value="bearer">Authorization: Bearer</option>
+                        <option value="x-api-key" data-cli-i18n="auth_x_api_key">x-api-key (recommended)</option>
+                        <option value="bearer" data-cli-i18n="auth_bearer">Authorization: Bearer</option>
                     </select>
                 </label>
                 <label>
-                    <span>CLIProxy client key</span>
-                    <input id="cli_proxy_image_direct_api_key" class="text_pole" type="password" autocomplete="off" placeholder="Client API key">
+                    <span data-cli-i18n="client_key">CLIProxy client key</span>
+                    <input id="cli_proxy_image_direct_api_key" class="text_pole" type="password" autocomplete="off" placeholder="Client API key" data-cli-i18n-placeholder="client_key_placeholder">
                 </label>
             </div>
 
             <div class="flex-container flexnowrap cli_proxy_image_direct_key_actions">
                 <label class="checkbox_label">
                     <input id="cli_proxy_image_direct_persist_key" type="checkbox">
-                    <span>Remember key in SillyTavern settings (plaintext)</span>
+                    <span data-cli-i18n="remember_key">Remember key in SillyTavern settings (plaintext)</span>
                 </label>
-                <button id="cli_proxy_image_direct_clear_key" class="menu_button" type="button">Clear key</button>
+                <button id="cli_proxy_image_direct_clear_key" class="menu_button" type="button" data-cli-i18n="clear_key">Clear key</button>
             </div>
-            <small>When “Remember” is off, the key stays only in page memory and is cleared on reload.</small>
+            <small data-cli-i18n="key_memory_hint">When “Remember” is off, the key stays only in page memory and is cleared on reload.</small>
 
             <div class="cli_proxy_image_direct_grid">
                 <label>
-                    <span>Model</span>
+                    <span data-cli-i18n="model">Model</span>
                     <select id="cli_proxy_image_direct_model" class="text_pole">
                         <option value="gpt-image-2">gpt-image-2</option>
                         <option value="gpt-image-1.5">gpt-image-1.5</option>
@@ -49,7 +58,7 @@
                     </select>
                 </label>
                 <label>
-                    <span>Size</span>
+                    <span data-cli-i18n="size">Size</span>
                     <select id="cli_proxy_image_direct_size" class="text_pole">
                         <option value="1024x1024">1024x1024</option>
                         <option value="1024x1536">1024x1536</option>
@@ -57,16 +66,16 @@
                     </select>
                 </label>
                 <label>
-                    <span>Quality</span>
+                    <span data-cli-i18n="quality">Quality</span>
                     <select id="cli_proxy_image_direct_quality" class="text_pole">
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="auto">Auto</option>
+                        <option value="low" data-cli-i18n="quality_low">Low</option>
+                        <option value="medium" data-cli-i18n="quality_medium">Medium</option>
+                        <option value="high" data-cli-i18n="quality_high">High</option>
+                        <option value="auto" data-cli-i18n="quality_auto">Auto</option>
                     </select>
                 </label>
                 <label>
-                    <span>Format</span>
+                    <span data-cli-i18n="format">Format</span>
                     <select id="cli_proxy_image_direct_format" class="text_pole">
                         <option value="png">PNG</option>
                         <option value="jpeg">JPEG</option>
@@ -75,17 +84,17 @@
                 </label>
             </div>
 
-            <label for="cli_proxy_image_direct_prompt">Prompt</label>
-            <textarea id="cli_proxy_image_direct_prompt" class="text_pole" rows="4" placeholder="Describe the image to generate"></textarea>
+            <label for="cli_proxy_image_direct_prompt" data-cli-i18n="prompt">Prompt</label>
+            <textarea id="cli_proxy_image_direct_prompt" class="text_pole" rows="4" placeholder="Describe the image to generate" data-cli-i18n-placeholder="prompt_placeholder"></textarea>
 
             <div class="flex-container flexnowrap">
-                <button id="cli_proxy_image_direct_generate" class="menu_button" type="button">Generate</button>
-                <button id="cli_proxy_image_direct_cancel" class="menu_button" type="button" disabled>Cancel</button>
-                <button id="cli_proxy_image_direct_test" class="menu_button" type="button">Test connection</button>
+                <button id="cli_proxy_image_direct_generate" class="menu_button" type="button" data-cli-i18n="generate">Generate</button>
+                <button id="cli_proxy_image_direct_cancel" class="menu_button" type="button" disabled data-cli-i18n="cancel">Cancel</button>
+                <button id="cli_proxy_image_direct_test" class="menu_button" type="button" data-cli-i18n="test_connection">Test connection</button>
             </div>
 
             <small id="cli_proxy_image_direct_status"></small>
-            <small>Slash command: <code>/plus-image your prompt</code></small>
+            <small><span data-cli-i18n="slash_command">Slash command:</span> <code>/plus-image &lt;prompt&gt;</code></small>
         </div>
     </div>
 </div>
