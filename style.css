@@ -28,6 +28,28 @@
 .cli_proxy_image_direct_key_actions {
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.cli_proxy_image_direct_key_actions .checkbox_label {
+    flex: 1 1 16rem;
+    min-width: 0;
+}
+
+.cli_proxy_image_direct_generation_actions {
+    flex-wrap: wrap;
+}
+
+.cli_proxy_image_direct_settings .menu_button {
+    width: auto;
+    flex: 1 0 auto;
+    min-width: max-content;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+.cli_proxy_image_direct_key_actions .menu_button {
+    flex-grow: 0;
 }
 
 #cli_proxy_image_direct_status.success {
@@ -50,5 +72,14 @@
     .cli_proxy_image_direct_key_actions {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .cli_proxy_image_direct_key_actions .checkbox_label {
+        flex-basis: auto;
+    }
+
+    .cli_proxy_image_direct_key_actions .menu_button,
+    .cli_proxy_image_direct_generation_actions .menu_button {
+        width: 100%;
     }
 }
