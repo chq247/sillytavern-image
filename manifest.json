@@ -1,12 +1,12 @@
 {
-  "display_name": "CLIProxy Plus Image (Direct)",
+  "display_name": "自定义端点生图",
   "loading_order": 50,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "CHQ",
-    "version": "1.1.1",
+  "version": "1.1.2",
   "minimum_client_version": "1.18.0",
   "auto_update": true
 }

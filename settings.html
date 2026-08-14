@@ -1,7 +1,7 @@
 <div id="cli_proxy_image_direct_settings" class="cli_proxy_image_direct_settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b data-cli-i18n="title">CLIProxy Plus Image (Direct)</b>
+            <b data-cli-i18n="title">Custom Endpoint Image Generation</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
@@ -16,12 +16,12 @@
 
             <div class="cli_proxy_image_direct_notice" data-cli-i18n="security_notice">
                 This extension sends requests directly from your browser. The API key is visible to browser scripts and DevTools.
-                Use only a revocable CLIProxy client key—never a ChatGPT OAuth token or cookie.
+                Use only a revocable custom API key—never a ChatGPT OAuth token or cookie.
             </div>
 
             <label>
-                <span data-cli-i18n="base_url">CLIProxy Base URL</span>
-                <input id="cli_proxy_image_direct_base_url" class="text_pole" type="url" placeholder="https://proxy.example/v1" data-cli-i18n-placeholder="base_url_placeholder">
+                <span data-cli-i18n="base_url">Custom endpoint (Base URL)</span>
+                <input id="cli_proxy_image_direct_base_url" class="text_pole" type="url" placeholder="https://endpoint.example/v1" data-cli-i18n-placeholder="base_url_placeholder">
             </label>
 
             <div class="cli_proxy_image_direct_grid cli_proxy_image_direct_auth_grid">
@@ -33,8 +33,8 @@
                     </select>
                 </label>
                 <label>
-                    <span data-cli-i18n="client_key">CLIProxy client key</span>
-                    <input id="cli_proxy_image_direct_api_key" class="text_pole" type="password" autocomplete="off" placeholder="Client API key" data-cli-i18n-placeholder="client_key_placeholder">
+                    <span data-cli-i18n="client_key">Custom API key</span>
+                    <input id="cli_proxy_image_direct_api_key" class="text_pole" type="password" autocomplete="off" placeholder="Custom API key" data-cli-i18n-placeholder="client_key_placeholder">
                 </label>
             </div>
 
