@@ -12,8 +12,9 @@ import {
 } from '../../../extensions.js';
 import { MEDIA_DISPLAY, MEDIA_SOURCE, MEDIA_TYPE } from '../../../constants.js';
 import { getMessageTimeStamp } from '../../../RossAscends-mods.js';
-import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../slash-commands/SlashCommandArgument.js';
+import { ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } from '../../../slash-commands/SlashCommandArgument.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
+import { SlashCommandEnumValue } from '../../../slash-commands/SlashCommandEnumValue.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { saveBase64AsFile } from '../../../utils.js';
 import {
@@ -22,6 +23,14 @@ import {
     describeApiError,
     normalizeGenerationResponse,
 } from './api.js';
+import {
+    CONTEXT_ERROR_CODES,
+    CONTEXT_MODES,
+    CONTEXT_MODE_VALUES,
+    contextModeRequiresPrompt,
+    normalizeContextMode,
+    resolveContextPrompt,
+} from './context.js';
 
 const MODULE_NAME = 'cli_proxy_image_direct';
 const EXTENSION_FOLDER = decodeURIComponent(new URL('.', import.meta.url).pathname.split('/').filter(Boolean).at(-1));
@@ -39,6 +48,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     size: '1024x1024',
     quality: 'low',
     output_format: 'png',
+    context_mode: CONTEXT_MODES.FREE,
 });
 const TRANSLATIONS = Object.freeze({
     en: {
@@ -76,14 +86,30 @@ const TRANSLATIONS = Object.freeze({
         quality_high: 'High',
         quality_auto: 'Auto',
         format: 'Format',
-        prompt: 'Prompt',
-        prompt_placeholder: 'Describe the image to generate',
+        prompt_source: 'Prompt source',
+        prompt_mode_free: 'Direct prompt',
+        prompt_mode_extend: 'LLM-expanded prompt',
+        prompt_mode_scene: 'Current scene / whole story',
+        prompt_mode_last: 'Visual details from the last message',
+        prompt_mode_raw_last: 'Raw last message',
+        prompt_mode_character: 'Current character',
+        prompt_mode_face: 'Current character face',
+        prompt_mode_user: 'User appearance',
+        prompt_mode_background: 'Background / environment',
+        prompt_source_hint: 'Direct and LLM-expanded modes require text below. Scene, last, character, face, user, and background use the current text model and accept optional guidance. Raw last ignores the text below.',
+        prompt: 'Prompt / additional guidance',
+        prompt_placeholder: 'Enter a direct or LLM-expandable prompt, or optional guidance for an LLM context mode',
         generate: 'Generate',
         cancel: 'Cancel',
         test_connection: 'Test connection',
         slash_command: 'Slash command:',
         enter_prompt: 'Enter an image prompt first.',
         open_chat: 'Open a character or group chat before generating an image.',
+        generating_context: 'Building an image prompt from the current chat context...',
+        context_prompt_failed: 'Could not build an image prompt from the chat context.',
+        context_prompt_empty: 'The text model returned an empty image prompt.',
+        no_usable_messages: 'No usable non-system chat message was found.',
+        invalid_context_mode: 'Unsupported prompt source: {mode}.',
         generating: 'Generating an image through the custom endpoint...',
         generated: 'Image generated.',
         generated_message: 'Generated image: {prompt}',
@@ -100,7 +126,9 @@ const TRANSLATIONS = Object.freeze({
         connected_models: 'Connected. Image models: {models}',
         connection_timeout: 'Connection test timed out.',
         browser_request_failed: 'Browser request failed. Check CORS, HTTPS, URL, and network access.',
-        slash_help: '<code>/plus-image prompt</code> — generate an image by calling the custom endpoint directly from the browser.',
+        context_mode_argument: 'prompt source: free, extend, scene, last, raw_last, character, face, user, or background',
+        slash_usage: '/plus-image [mode=scene] [optional guidance]',
+        slash_help: '<code>/plus-image [mode=scene] [optional guidance]</code> — generate through the custom endpoint. Modes: <code>free, extend, scene, last, raw_last, character, face, user, background</code>.',
         slash_returns: 'URL of the generated image, or an empty string if generation failed',
         error_invalid_url: 'Custom endpoint Base URL is invalid.',
         error_url_protocol: 'Custom endpoint Base URL must use HTTP or HTTPS.',
@@ -143,14 +171,30 @@ const TRANSLATIONS = Object.freeze({
         quality_high: '高',
         quality_auto: '自动',
         format: '图片格式',
-        prompt: '提示词',
-        prompt_placeholder: '描述要生成的图片',
+        prompt_source: '提示词来源',
+        prompt_mode_free: '直接提示词',
+        prompt_mode_extend: '由 LLM 扩写提示词',
+        prompt_mode_scene: '当前场景 / 整个故事',
+        prompt_mode_last: '提取最后消息的视觉内容',
+        prompt_mode_raw_last: '原始最后消息',
+        prompt_mode_character: '当前角色',
+        prompt_mode_face: '当前角色面部',
+        prompt_mode_user: '用户形象',
+        prompt_mode_background: '背景 / 环境',
+        prompt_source_hint: '直接提示词和 LLM 扩写模式必须填写下方文字；场景、最后消息、角色、面部、用户和背景模式会调用当前文本模型，并接受可选的额外要求；原始最后消息模式会忽略下方文字。',
+        prompt: '提示词 / 额外要求',
+        prompt_placeholder: '输入直接提示词或待 LLM 扩写的提示词；LLM 上下文模式可填写额外要求',
         generate: '生成图片',
         cancel: '取消',
         test_connection: '测试连接',
         slash_command: '斜杠命令：',
         enter_prompt: '请先输入图片提示词。',
         open_chat: '请先打开一个角色聊天或群聊。',
+        generating_context: '正在根据当前聊天上下文整理生图提示词……',
+        context_prompt_failed: '无法根据聊天上下文生成生图提示词。',
+        context_prompt_empty: '文本模型返回了空的生图提示词。',
+        no_usable_messages: '没有找到可用的非系统聊天消息。',
+        invalid_context_mode: '不支持的提示词来源：{mode}。',
         generating: '正在通过自定义端点生成图片……',
         generated: '图片生成成功。',
         generated_message: '生成的图片：{prompt}',
@@ -167,7 +211,9 @@ const TRANSLATIONS = Object.freeze({
         connected_models: '连接成功。图片模型：{models}',
         connection_timeout: '连接测试超时。',
         browser_request_failed: '浏览器请求失败。请检查 CORS、HTTPS、地址和网络连接。',
-        slash_help: '<code>/plus-image 提示词</code> — 从浏览器直接调用自定义端点生成图片。',
+        context_mode_argument: '提示词来源：free、extend、scene、last、raw_last、character、face、user 或 background',
+        slash_usage: '/plus-image [mode=scene] [可选额外要求]',
+        slash_help: '<code>/plus-image [mode=scene] [可选额外要求]</code> — 通过自定义端点生成图片。模式：<code>free、extend、scene、last、raw_last、character、face、user、background</code>。',
         slash_returns: '返回生成图片的 URL；生成失败时返回空字符串',
         error_invalid_url: '自定义端点（基础 URL）无效。',
         error_url_protocol: '自定义端点（基础 URL）必须使用 HTTP 或 HTTPS。',
@@ -175,6 +221,17 @@ const TRANSLATIONS = Object.freeze({
         error_key_required: '必须填写自定义 API 密钥。',
         error_auth_mode: '认证方式必须是 x-api-key 或 bearer。',
     },
+});
+const CONTEXT_MODE_I18N_KEYS = Object.freeze({
+    [CONTEXT_MODES.FREE]: 'prompt_mode_free',
+    [CONTEXT_MODES.EXTEND]: 'prompt_mode_extend',
+    [CONTEXT_MODES.SCENE]: 'prompt_mode_scene',
+    [CONTEXT_MODES.LAST]: 'prompt_mode_last',
+    [CONTEXT_MODES.RAW_LAST]: 'prompt_mode_raw_last',
+    [CONTEXT_MODES.CHARACTER]: 'prompt_mode_character',
+    [CONTEXT_MODES.FACE]: 'prompt_mode_face',
+    [CONTEXT_MODES.USER]: 'prompt_mode_user',
+    [CONTEXT_MODES.BACKGROUND]: 'prompt_mode_background',
 });
 const KNOWN_ERROR_KEYS = Object.freeze({
     'CLIProxy Base URL is invalid.': 'error_invalid_url',
@@ -219,6 +276,15 @@ function applyTranslations() {
     if (registeredSlashCommand) {
         registeredSlashCommand.helpString = tr('slash_help');
         registeredSlashCommand.returns = tr('slash_returns');
+        const modeArgument = registeredSlashCommand.namedArgumentList?.find(argument => argument.name === 'mode');
+        if (modeArgument) {
+            modeArgument.description = tr('context_mode_argument');
+            for (const enumValue of modeArgument.enumList) {
+                enumValue.description = tr(CONTEXT_MODE_I18N_KEYS[enumValue.value]);
+            }
+        }
+        const promptArgument = registeredSlashCommand.unnamedArgumentList?.[0];
+        if (promptArgument) promptArgument.description = tr('prompt');
     }
 }
 
@@ -228,7 +294,26 @@ function getSettings() {
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
         if (settings[key] === undefined) settings[key] = value;
     }
+    const savedContextMode = settings.context_mode;
+    try {
+        settings.context_mode = normalizeContextMode(savedContextMode);
+    } catch (error) {
+        if (error?.code !== CONTEXT_ERROR_CODES.INVALID_MODE) throw error;
+        settings.context_mode = CONTEXT_MODES.FREE;
+    }
+    if (settings.context_mode !== savedContextMode) saveSettingsDebounced();
     return settings;
+}
+
+function resolveContextMode(mode) {
+    try {
+        return normalizeContextMode(mode);
+    } catch (error) {
+        if (error?.code === CONTEXT_ERROR_CODES.INVALID_MODE) {
+            throw new Error(tr('invalid_context_mode', { mode: String(mode ?? '') }));
+        }
+        throw error;
+    }
 }
 
 function getApiKey() {
@@ -268,13 +353,10 @@ function getProxyRequest(resource) {
 }
 
 async function requestImage(prompt) {
-    if (generationInProgress) throw new Error(tr('generation_in_progress'));
-
-    generationInProgress = true;
     const controller = new AbortController();
     activeGenerationController = controller;
     const timeout = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
-    setBusyState(true);
+    setBusyState(true, true);
 
     try {
         const settings = getSettings();
@@ -317,8 +399,7 @@ async function requestImage(prompt) {
     } finally {
         clearTimeout(timeout);
         if (activeGenerationController === controller) activeGenerationController = null;
-        generationInProgress = false;
-        setBusyState(false);
+        setBusyState(generationInProgress, false);
     }
 }
 
@@ -372,12 +453,93 @@ function parseJson(text, status) {
     }
 }
 
-async function generateAndPost(prompt) {
+async function resolveImagePrompt(mode, prompt, context) {
+    const usesTextModel = ![CONTEXT_MODES.FREE, CONTEXT_MODES.RAW_LAST].includes(mode);
+    const contextToast = usesTextModel
+        ? toastr.info(tr('generating_context'), tr('title'), { escapeHtml: true })
+        : null;
+
+    try {
+        return await resolveContextPrompt({
+            mode,
+            userPrompt: prompt,
+            chat: context.chat,
+            generatePrompt: async instruction => {
+                if (typeof context.generateQuietPrompt !== 'function') {
+                    throw new Error('SillyTavern context prompt generation is unavailable.');
+                }
+                return context.generateQuietPrompt({
+                    quietPrompt: instruction,
+                    responseLength: 300,
+                    removeReasoning: true,
+                    trimToSentence: false,
+                });
+            },
+        });
+    } catch (error) {
+        if (error?.code === CONTEXT_ERROR_CODES.NO_USABLE_MESSAGES) {
+            throw new Error(tr('no_usable_messages'));
+        }
+        if (error?.code === CONTEXT_ERROR_CODES.EMPTY_GENERATED_PROMPT) {
+            throw new Error(tr('context_prompt_empty'));
+        }
+        if (error?.code === CONTEXT_ERROR_CODES.PROMPT_REQUIRED) {
+            throw new Error(tr('enter_prompt'));
+        }
+        if (usesTextModel) {
+            console.error('[cli-proxy-image-direct] Context prompt generation failed:', error);
+            throw new Error(`${tr('context_prompt_failed')} ${formatError(error?.cause ?? error)}`.trim());
+        }
+        throw error;
+    } finally {
+        if (contextToast) toastr.clear(contextToast);
+    }
+}
+
+function captureConversationIdentity(context = getContext()) {
+    if (hasGroupChat(context)) {
+        return {
+            type: 'group',
+            ownerId: String(context.groupId),
+            chatId: String(getCurrentChatId() ?? ''),
+        };
+    }
+    return {
+        type: 'character',
+        ownerId: String(context.characterId ?? ''),
+        chatId: String(getCurrentChatId() ?? ''),
+    };
+}
+
+function conversationIdentitiesMatch(expected, actual) {
+    return expected.type === actual.type
+        && expected.ownerId === actual.ownerId
+        && expected.chatId === actual.chatId;
+}
+
+function assertChatUnchanged(operation) {
+    if (operation.chatChanged
+        || !conversationIdentitiesMatch(operation.conversation, captureConversationIdentity())) {
+        throw new Error(tr('chat_changed'));
+    }
+}
+
+function assertGenerationCanContinue(operation) {
+    assertChatUnchanged(operation);
+    if (operation.cancelled || operation.slashAbortController?.signal?.aborted) {
+        throw new Error(tr('generation_cancelled'));
+    }
+}
+
+async function generateAndPost(prompt, { mode: modeOverride, slashAbortController = null } = {}) {
     const normalizedPrompt = String(prompt || '').trim();
-    if (!normalizedPrompt) {
+    const mode = resolveContextMode(modeOverride ?? getSettings().context_mode);
+    if (contextModeRequiresPrompt(mode) && !normalizedPrompt) {
         toastr.warning(tr('enter_prompt'), tr('title'), { escapeHtml: true });
         return '';
     }
+
+    if (generationInProgress) throw new Error(tr('generation_in_progress'));
 
     const initialContext = getContext();
     const hasSelectedConversation = hasGroupChat(initialContext)
@@ -388,22 +550,63 @@ async function generateAndPost(prompt) {
         return '';
     }
 
-    toastr.info(tr('generating'), tr('title'), { escapeHtml: true });
-    const result = await requestImage(normalizedPrompt);
-    const context = getContext();
-    if (chatId !== getCurrentChatId()) {
-        throw new Error(tr('chat_changed'));
-    }
+    const operation = {
+        conversation: captureConversationIdentity(initialContext),
+        chatChanged: false,
+        cancelled: Boolean(slashAbortController?.signal?.aborted),
+        slashAbortController,
+    };
+    const onChatChanged = () => {
+        operation.chatChanged = true;
+        activeGenerationController?.abort();
+    };
+    const onSlashAbort = () => {
+        operation.cancelled = true;
+        activeGenerationController?.abort();
+    };
 
-    const characterName = hasGroupChat(context) ? String(context.groupId) : context.name2;
-    const filename = `cli_proxy_plus_${Date.now()}`;
-    const imageUrl = await saveBase64AsFile(result.data, characterName, filename, result.format);
-    await appendImageMessage(context, normalizedPrompt, imageUrl);
-    toastr.success(tr('generated'), tr('title'), { escapeHtml: true });
-    return imageUrl;
+    generationInProgress = true;
+    setBusyState(true, false);
+    eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
+    slashAbortController?.addEventListener?.('abort', onSlashAbort);
+
+    try {
+        assertGenerationCanContinue(operation);
+        const imagePrompt = await resolveImagePrompt(mode, normalizedPrompt, initialContext);
+        assertGenerationCanContinue(operation);
+
+        toastr.info(tr('generating'), tr('title'), { escapeHtml: true });
+        const result = await requestImage(imagePrompt);
+        assertGenerationCanContinue(operation);
+
+        const context = getContext();
+        const characterName = hasGroupChat(context) ? String(context.groupId) : context.name2;
+        const filename = `cli_proxy_plus_${Date.now()}`;
+        const imageUrl = await saveBase64AsFile(result.data, characterName, filename, result.format);
+        assertGenerationCanContinue(operation);
+
+        await appendImageMessage(context, imagePrompt, imageUrl, mode, normalizedPrompt, operation);
+        toastr.success(tr('generated'), tr('title'), { escapeHtml: true });
+        return imageUrl;
+    } catch (error) {
+        if (operation.chatChanged
+            || !conversationIdentitiesMatch(operation.conversation, captureConversationIdentity())) {
+            throw new Error(tr('chat_changed'));
+        }
+        if (operation.cancelled || slashAbortController?.signal?.aborted) {
+            throw new Error(tr('generation_cancelled'));
+        }
+        throw error;
+    } finally {
+        eventSource.removeListener(event_types.CHAT_CHANGED, onChatChanged);
+        slashAbortController?.removeEventListener?.('abort', onSlashAbort);
+        generationInProgress = false;
+        activeGenerationController = null;
+        setBusyState(false, false);
+    }
 }
 
-async function appendImageMessage(context, prompt, imageUrl) {
+async function appendImageMessage(context, prompt, imageUrl, mode, sourcePrompt, operation) {
     const message = {
         name: hasGroupChat(context) ? systemUserName : (context.name2 || 'Assistant'),
         is_user: false,
@@ -416,6 +619,8 @@ async function appendImageMessage(context, prompt, imageUrl) {
                 type: MEDIA_TYPE.IMAGE,
                 title: prompt,
                 source: MEDIA_SOURCE.GENERATED,
+                context_mode: mode,
+                source_prompt: sourcePrompt,
             }],
             media_display: MEDIA_DISPLAY.GALLERY,
             media_index: 0,
@@ -423,19 +628,31 @@ async function appendImageMessage(context, prompt, imageUrl) {
         },
     };
 
+    assertGenerationCanContinue(operation);
     context.chat.push(message);
     const messageId = context.chat.length - 1;
-    await eventSource.emit(event_types.MESSAGE_RECEIVED, messageId, 'extension');
-    context.addOneMessage(message);
-    await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, messageId, 'extension');
-    await context.saveChat();
-    setTimeout(() => context.scrollOnMediaLoad?.(), 100);
+    let messageElement = null;
+    try {
+        await eventSource.emit(event_types.MESSAGE_RECEIVED, messageId, 'extension');
+        assertChatUnchanged(operation);
+        messageElement = context.addOneMessage(message);
+        await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, messageId, 'extension');
+        assertChatUnchanged(operation);
+        await context.saveChat();
+        assertChatUnchanged(operation);
+        setTimeout(() => context.scrollOnMediaLoad?.(), 100);
+    } catch (error) {
+        messageElement?.remove?.();
+        if (context.chat[messageId] === message) context.chat.splice(messageId, 1);
+        throw error;
+    }
 }
 
-function setBusyState(isBusy) {
+function setBusyState(isBusy, canCancel = false) {
     $('#cli_proxy_image_direct_generate').prop('disabled', isBusy);
     $('#cli_proxy_image_direct_prompt').prop('disabled', isBusy);
-    $('#cli_proxy_image_direct_cancel').prop('disabled', !isBusy);
+    $('#cli_proxy_image_direct_context_mode').prop('disabled', isBusy);
+    $('#cli_proxy_image_direct_cancel').prop('disabled', !isBusy || !canCancel);
 }
 
 function setStatus(message, className = '') {
@@ -572,6 +789,10 @@ function bindSettings() {
         settings.output_format = String($(this).val());
         saveSettingsDebounced();
     });
+    $('#cli_proxy_image_direct_context_mode').val(settings.context_mode).on('change', function () {
+        settings.context_mode = resolveContextMode($(this).val());
+        saveSettingsDebounced();
+    });
     $('#cli_proxy_image_direct_test').on('click', testConnection);
     $('#cli_proxy_image_direct_cancel').on('click', () => activeGenerationController?.abort());
     $('#cli_proxy_image_direct_generate').on('click', async () => {
@@ -594,12 +815,27 @@ function registerSlashCommand() {
         aliases: ['pimg', 'cli-proxy-image'],
         returns: tr('slash_returns'),
         helpString: tr('slash_help'),
-        unnamedArgumentList: [
-            new SlashCommandArgument('prompt', [ARGUMENT_TYPE.STRING], true),
+        namedArgumentList: [
+            SlashCommandNamedArgument.fromProps({
+                name: 'mode',
+                description: tr('context_mode_argument'),
+                typeList: [ARGUMENT_TYPE.STRING],
+                enumList: CONTEXT_MODE_VALUES.map(mode => new SlashCommandEnumValue(
+                    mode,
+                    tr(CONTEXT_MODE_I18N_KEYS[mode]),
+                )),
+                forceEnum: true,
+            }),
         ],
-        callback: async (_args, value) => {
+        unnamedArgumentList: [
+            new SlashCommandArgument(tr('prompt'), [ARGUMENT_TYPE.STRING], false),
+        ],
+        callback: async (args, value) => {
             try {
-                return await generateAndPost(value);
+                return await generateAndPost(value, {
+                    mode: args?.mode,
+                    slashAbortController: args?._abortController,
+                });
             } catch (error) {
                 console.error('[cli-proxy-image-direct] Generation failed:', error);
                 toastr.error(

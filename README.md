@@ -1,4 +1,4 @@
-# SillyTavern CLIProxy Plus Image（纯前端扩展）
+# SillyTavern 自定义端点生图（纯前端扩展）
 
 通过 CLIProxyAPI 的 `/v1/images/generations` 在 SillyTavern 中生成图片。不需要本地 GPU，
 不修改 SillyTavern 源码，也不需要 SillyTavern 服务端插件。
@@ -10,12 +10,13 @@
 - `gpt-image-2` / `gpt-image-1.5`
 - PNG、JPEG、WebP
 - 13 个尺寸选项，覆盖 1:1、2:3、3:2、16:9、9:16（实际支持取决于自定义端点）
-- `/plus-image <prompt>` 斜杠命令
+- 9 种提示词来源：直接提示词、LLM 扩写、当前场景、最后消息、原始最后消息、当前角色、角色面部、用户形象、背景环境
+- `/plus-image [mode=<提示词来源>] [额外要求]` 斜杠命令
 - 生成结果自动保存到当前角色或群组图库并插入聊天
-- 连接测试、取消、超时、Base64/图片格式/响应大小校验
+- 连接测试、取消、超时、Base64/图片格式/响应大小校验（取消仅在图像 HTTP 请求阶段可用）
 - 配置页支持“自动 / 中文 / English”实时切换，选择会保存在用户设置中
-- 默认只把 CLIProxy key 放在当前页面的内存中，刷新即清除
-- 可选择将 key 明文保存在 SillyTavern 用户设置中
+- 默认只把自定义 API 密钥放在当前页面的内存中，刷新即清除
+- 可选择将自定义 API 密钥明文保存在 SillyTavern 用户设置中
 
 ## 作为独立 Git 仓库发布
 
@@ -26,12 +27,15 @@
 manifest.json
 index.js
 api.js
+context.js
 settings.html
 style.css
 README.md
 LICENSE
 package.json
 api.test.js
+context.test.js
+settings.test.js
 ```
 
 示例：
@@ -40,7 +44,7 @@ api.test.js
 cd sillytavern-cli-proxy-image
 git init
 git add .
-git commit -m "Initial SillyTavern CLIProxy image extension"
+git commit -m "Initial SillyTavern custom endpoint image extension"
 git branch -M main
 git remote add origin https://github.com/<user>/<repo>.git
 git push -u origin main
@@ -51,9 +55,9 @@ git push -u origin main
 1. 打开 **Extensions → Install Extension**。
 2. 粘贴仓库 Git URL，例如 `https://github.com/<user>/<repo>.git`。
 3. 安装并刷新 SillyTavern 页面。
-4. 打开 **Extensions → CLIProxy Plus Image (Direct)**。
+4. 打开 **Extensions → 自定义端点生图**。
 5. 可先将 **Interface language / 界面语言** 切换为“中文”。
-6. 填写 CLIProxy Base URL、客户端 key，认证选择 `x-api-key`。
+6. 填写 **自定义端点（基础 URL）**、**自定义 API 密钥**，认证选择 `x-api-key`。
 7. 点击 **测试连接 / Test connection**；成功后即可生成。
 
 Base URL 示例：
@@ -90,10 +94,37 @@ Nginx/Caddy 将 `Access-Control-Allow-Origin` 限制为你的 SillyTavern Origin
 /plus-image 一位银发女法师站在雨夜霓虹街道，电影感光影
 ```
 
+### 提示词来源
+
+扩展提供以下 9 种来源：
+
+| 模式 | 含义 |
+| --- | --- |
+| `free` | 直接提示词；将输入内容原样发送给生图端点，维持旧版本行为 |
+| `extend` | 使用文本 LLM 扩写输入的简短提示词 |
+| `scene` | 根据聊天上下文整理当前场景或整个故事的视觉内容 |
+| `last` | 从最后一条消息提炼适合绘图的视觉内容 |
+| `raw_last` | 直接使用最后一条非系统消息的原始内容 |
+| `character` | 根据上下文描述当前角色 |
+| `face` | 根据上下文聚焦当前角色的面部与肖像细节 |
+| `user` | 根据上下文描述用户形象 |
+| `background` | 根据上下文描述背景或环境 |
+
+`extend`、`scene`、`last`、`character`、`face`、`user` 和 `background` 会调用 SillyTavern 当前配置的文本模型来整理生图提示词，因此会消费该文本模型对应的额度。其中 `extend` 必须提供待扩写的提示词，其他六种模式可把输入框内容作为额外要求。`raw_last` 直接读取最后一条可用消息，不调用文本模型，也不追加输入框内容。`free` 同样不调用文本模型，并保持原有的直接生图行为。
+
+斜杠命令示例：
+
+```text
+/plus-image mode=scene
+/plus-image mode=character 电影感光影
+```
+
+上下文整理阶段没有可用的中止接口，因此取消按钮只会在向图像端点发送 HTTP 请求后启用。
+
 ## 安全边界
 
 纯前端方案无法隐藏 key：同源的其他 SillyTavern 扩展、浏览器 DevTools 或 XSS
-都可能读取它。只使用可随时轮换、权限有限的 **CLIProxy 客户端 key**；绝不要填写
+都可能读取它。只使用可随时轮换、权限有限的 **自定义 API 密钥**；绝不要填写
 ChatGPT OAuth token、Cookie、账号密码或 Plus 会话凭据。
 
 - 默认不持久化 key，只保存在当前页面内存中，刷新页面即清除。

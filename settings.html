@@ -94,8 +94,24 @@
                 </label>
             </div>
 
-            <label for="cli_proxy_image_direct_prompt" data-cli-i18n="prompt">Prompt</label>
-            <textarea id="cli_proxy_image_direct_prompt" class="text_pole" rows="4" placeholder="Describe the image to generate" data-cli-i18n-placeholder="prompt_placeholder"></textarea>
+            <label for="cli_proxy_image_direct_context_mode">
+                <span data-cli-i18n="prompt_source">Prompt source</span>
+                <select id="cli_proxy_image_direct_context_mode" class="text_pole">
+                    <option value="free" data-cli-i18n="prompt_mode_free">Direct prompt</option>
+                    <option value="extend" data-cli-i18n="prompt_mode_extend">LLM-expanded prompt</option>
+                    <option value="scene" data-cli-i18n="prompt_mode_scene">Current scene / whole story</option>
+                    <option value="last" data-cli-i18n="prompt_mode_last">Visual details from the last message</option>
+                    <option value="raw_last" data-cli-i18n="prompt_mode_raw_last">Raw last message</option>
+                    <option value="character" data-cli-i18n="prompt_mode_character">Current character</option>
+                    <option value="face" data-cli-i18n="prompt_mode_face">Current character face</option>
+                    <option value="user" data-cli-i18n="prompt_mode_user">User appearance</option>
+                    <option value="background" data-cli-i18n="prompt_mode_background">Background / environment</option>
+                </select>
+                <small data-cli-i18n="prompt_source_hint">Direct and LLM-expanded modes require text below. Scene, last, character, face, user, and background use the current text model and accept optional guidance. Raw last ignores the text below.</small>
+            </label>
+
+            <label for="cli_proxy_image_direct_prompt" data-cli-i18n="prompt">Prompt / additional guidance</label>
+            <textarea id="cli_proxy_image_direct_prompt" class="text_pole" rows="4" placeholder="Enter a direct or LLM-expandable prompt, or optional guidance for an LLM context mode" data-cli-i18n-placeholder="prompt_placeholder"></textarea>
 
             <div class="flex-container cli_proxy_image_direct_generation_actions">
                 <button id="cli_proxy_image_direct_generate" class="menu_button" type="button" data-cli-i18n="generate">Generate</button>
@@ -104,7 +120,7 @@
             </div>
 
             <small id="cli_proxy_image_direct_status"></small>
-            <small><span data-cli-i18n="slash_command">Slash command:</span> <code>/plus-image &lt;prompt&gt;</code></small>
+            <small><span data-cli-i18n="slash_command">Slash command:</span> <code data-cli-i18n="slash_usage">/plus-image [mode=scene] [optional guidance]</code></small>
         </div>
     </div>
 </div>
