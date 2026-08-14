@@ -1,0 +1,54 @@
+.cli_proxy_image_direct_settings .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.cli_proxy_image_direct_grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.cli_proxy_image_direct_grid label,
+.cli_proxy_image_direct_settings > label,
+.cli_proxy_image_direct_settings .inline-drawer-content > label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.cli_proxy_image_direct_notice {
+    padding: 0.55rem;
+    border: 1px solid var(--warning-color, #d9a441);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--warning-color, #d9a441) 12%, transparent);
+}
+
+.cli_proxy_image_direct_key_actions {
+    align-items: center;
+    justify-content: space-between;
+}
+
+#cli_proxy_image_direct_status.success {
+    color: var(--SmartThemeQuoteColor);
+}
+
+#cli_proxy_image_direct_status.failure {
+    color: var(--crimson70a);
+}
+
+#cli_proxy_image_direct_status.warning {
+    color: var(--warning-color, #d9a441);
+}
+
+@media (max-width: 600px) {
+    .cli_proxy_image_direct_grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cli_proxy_image_direct_key_actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

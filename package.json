@@ -1,0 +1,12 @@
+{
+  "name": "sillytavern-cli-proxy-image",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test api.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
