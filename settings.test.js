@@ -115,3 +115,25 @@ test('auto generation toggle, collapsed options block, and both auto selects exi
         .map((match) => match[1]);
     assert.deepEqual(cooldownValues, AUTO_COOLDOWN_OPTIONS);
 });
+
+test('auto generation checkbox labels use the horizontal layout class', async () => {
+    const [settingsHtml, stylesheet] = await Promise.all([
+        readFile(new URL('./settings.html', import.meta.url), 'utf8'),
+        readFile(new URL('./style.css', import.meta.url), 'utf8'),
+    ]);
+
+    for (const id of [
+        'cli_proxy_image_direct_auto_generate',
+        'cli_proxy_image_direct_auto_first_message',
+    ]) {
+        assert.match(
+            settingsHtml,
+            new RegExp(`<label\\s+class="[^"]*cli_proxy_image_direct_checkbox[^"]*">\\s*<input\\s+id="${id}"`),
+        );
+    }
+
+    assert.match(
+        stylesheet,
+        /label\.cli_proxy_image_direct_checkbox\s*\{[^}]*flex-direction:\s*row;/s,
+    );
+});

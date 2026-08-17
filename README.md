@@ -5,7 +5,7 @@
 
 该仓库可直接通过 SillyTavern 的 **Extensions → Install Extension** 使用 Git URL 安装。
 
-- 当前扩展版本：`1.4.0`
+- 当前扩展版本：`1.4.1`
 - 最低 SillyTavern 版本：`1.18.0`
 - 安装地址：`https://github.com/chq247/sillytavern-image.git`
 
