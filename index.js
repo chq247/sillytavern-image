@@ -40,11 +40,15 @@ import {
     normalizeAutoContextMode,
     normalizeAutoCooldownSeconds,
 } from './auto.js';
+import {
+    DEFAULT_GENERATION_TIMEOUT_MINUTES,
+    getGenerationTimeoutMilliseconds,
+    normalizeGenerationTimeoutMinutes,
+} from './timeout.js';
 
 const MODULE_NAME = 'cli_proxy_image_direct';
 const EXTENSION_FOLDER = decodeURIComponent(new URL('.', import.meta.url).pathname.split('/').filter(Boolean).at(-1));
 const EXTENSION_PATH = `third-party/${EXTENSION_FOLDER}`;
-const CLIENT_TIMEOUT_MS = 190_000;
 const CONNECTION_TIMEOUT_MS = 20_000;
 const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 const DEFAULT_SETTINGS = Object.freeze({
@@ -57,6 +61,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     size: '1024x1024',
     quality: 'low',
     output_format: 'png',
+    generation_timeout_minutes: DEFAULT_GENERATION_TIMEOUT_MINUTES,
     context_mode: CONTEXT_MODES.FREE,
     auto_generate: false,
     auto_context_mode: DEFAULT_AUTO_CONTEXT_MODE,
@@ -100,6 +105,8 @@ const TRANSLATIONS = Object.freeze({
         quality_high: 'High',
         quality_auto: 'Auto',
         format: 'Format',
+        generation_timeout: 'Image generation timeout (minutes)',
+        generation_timeout_hint: 'Allowed range: 1–60 minutes. This applies to the image endpoint request; default: 10 minutes.',
         grok_hint: 'Grok image models convert the selected size into an aspect ratio (1k/2k resolution) and ignore Quality and Format.',
         prompt_source: 'Prompt source',
         prompt_mode_free: 'Direct prompt',
@@ -136,7 +143,8 @@ const TRANSLATIONS = Object.freeze({
         generated: 'Image generated.',
         generated_message: 'Generated image: {prompt}',
         generation_in_progress: 'An image is already being generated in this tab.',
-        generation_cancelled: 'Image generation was cancelled or timed out.',
+        generation_cancelled: 'Image generation was cancelled.',
+        generation_timed_out: 'Image generation timed out after {minutes} minutes. Increase the timeout setting or check the endpoint logs.',
         chat_changed: 'The active chat changed while the image was being generated.',
         browser_unreachable: 'Browser could not reach the custom endpoint. Check CORS, HTTPS mixed-content rules, URL, and network access.',
         enter_key: 'Enter a custom API key.',
@@ -193,6 +201,8 @@ const TRANSLATIONS = Object.freeze({
         quality_high: '高',
         quality_auto: '自动',
         format: '图片格式',
+        generation_timeout: '生图超时时间（分钟）',
+        generation_timeout_hint: '可设置 1–60 分钟，仅作用于图片端点请求；默认 10 分钟。',
         grok_hint: 'grok 生图模型会将所选“图片尺寸”换算为宽高比（1k/2k 分辨率），并忽略“图片质量”和“图片格式”。',
         prompt_source: '提示词来源',
         prompt_mode_free: '直接提示词',
@@ -229,7 +239,8 @@ const TRANSLATIONS = Object.freeze({
         generated: '图片生成成功。',
         generated_message: '生成的图片：{prompt}',
         generation_in_progress: '当前标签页已有图片生成任务正在运行。',
-        generation_cancelled: '图片生成已取消或超时。',
+        generation_cancelled: '图片生成已取消。',
+        generation_timed_out: '图片生成超过 {minutes} 分钟，已停止等待。请增大“生图超时时间”或检查自定义端点日志。',
         chat_changed: '生成图片期间活动聊天发生了变化。',
         browser_unreachable: '浏览器无法连接自定义端点。请检查 CORS、HTTPS 混合内容限制、地址和网络连接。',
         enter_key: '请输入自定义 API 密钥。',
@@ -337,9 +348,12 @@ function getSettings() {
     settings.auto_context_mode = normalizeAutoContextMode(savedAutoContextMode);
     const savedAutoCooldownSeconds = settings.auto_cooldown_seconds;
     settings.auto_cooldown_seconds = normalizeAutoCooldownSeconds(savedAutoCooldownSeconds);
+    const savedGenerationTimeoutMinutes = settings.generation_timeout_minutes;
+    settings.generation_timeout_minutes = normalizeGenerationTimeoutMinutes(savedGenerationTimeoutMinutes);
     if (settings.context_mode !== savedContextMode
         || settings.auto_context_mode !== savedAutoContextMode
-        || settings.auto_cooldown_seconds !== savedAutoCooldownSeconds) {
+        || settings.auto_cooldown_seconds !== savedAutoCooldownSeconds
+        || settings.generation_timeout_minutes !== savedGenerationTimeoutMinutes) {
         saveSettingsDebounced();
     }
     return settings;
@@ -393,13 +407,19 @@ function getProxyRequest(resource) {
 }
 
 async function requestImage(prompt) {
+    const settings = getSettings();
+    const timeoutMinutes = normalizeGenerationTimeoutMinutes(settings.generation_timeout_minutes);
     const controller = new AbortController();
     activeGenerationController = controller;
-    const timeout = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+    let requestTimedOut = false;
+    const timeout = setTimeout(() => {
+        if (controller.signal.aborted) return;
+        requestTimedOut = true;
+        controller.abort();
+    }, getGenerationTimeoutMilliseconds(timeoutMinutes));
     setBusyState(true, true);
 
     try {
-        const settings = getSettings();
         const proxy = getProxyRequest('images/generations');
         const response = await fetch(proxy.url, {
             method: 'POST',
@@ -423,6 +443,9 @@ async function requestImage(prompt) {
         return normalizeGenerationResponse(payload, fallbackFormat);
     } catch (error) {
         if (error?.name === 'AbortError') {
+            if (requestTimedOut) {
+                throw new Error(tr('generation_timed_out', { minutes: timeoutMinutes }));
+            }
             throw new Error(tr('generation_cancelled'));
         }
         if (error instanceof TypeError) {
@@ -719,6 +742,7 @@ function setBusyState(isBusy, canCancel = false) {
     $('#cli_proxy_image_direct_generate').prop('disabled', isBusy);
     $('#cli_proxy_image_direct_prompt').prop('disabled', isBusy);
     $('#cli_proxy_image_direct_context_mode').prop('disabled', isBusy);
+    $('#cli_proxy_image_direct_generation_timeout').prop('disabled', isBusy);
     $('#cli_proxy_image_direct_cancel').prop('disabled', !isBusy || !canCancel);
 }
 
@@ -866,6 +890,11 @@ function bindSettings() {
     });
     $('#cli_proxy_image_direct_format').val(settings.output_format).on('change', function () {
         settings.output_format = String($(this).val());
+        saveSettingsDebounced();
+    });
+    $('#cli_proxy_image_direct_generation_timeout').val(settings.generation_timeout_minutes).on('change', function () {
+        settings.generation_timeout_minutes = normalizeGenerationTimeoutMinutes($(this).val());
+        $(this).val(settings.generation_timeout_minutes);
         saveSettingsDebounced();
     });
     $('#cli_proxy_image_direct_context_mode').val(settings.context_mode).on('change', function () {

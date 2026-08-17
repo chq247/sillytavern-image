@@ -78,6 +78,15 @@ test('model selector offers the gpt-image and grok image models exactly once', a
     assert.deepEqual(optionValues, MODELS);
 });
 
+test('generation timeout is configured in whole minutes from one to sixty', async () => {
+    const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
+
+    assert.match(
+        settingsHtml,
+        /<input\s+id="cli_proxy_image_direct_generation_timeout"\s+class="text_pole"\s+type="number"\s+min="1"\s+max="60"\s+step="1"/,
+    );
+});
+
 test('prompt source selector offers exactly the nine supported context modes', async () => {
     const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
     const selector = settingsHtml.match(

@@ -94,6 +94,11 @@
                         <option value="webp">WebP</option>
                     </select>
                 </label>
+                <label>
+                    <span data-cli-i18n="generation_timeout">Image generation timeout (minutes)</span>
+                    <input id="cli_proxy_image_direct_generation_timeout" class="text_pole" type="number" min="1" max="60" step="1" inputmode="numeric">
+                    <small data-cli-i18n="generation_timeout_hint">Allowed range: 1–60 minutes. This applies to the image endpoint request; default: 10 minutes.</small>
+                </label>
             </div>
             <small id="cli_proxy_image_direct_grok_hint" data-cli-i18n="grok_hint" hidden>Grok image models convert the selected size into an aspect ratio (1k/2k resolution) and ignore Quality and Format.</small>
 
