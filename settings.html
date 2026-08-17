@@ -116,6 +116,43 @@
             <label for="cli_proxy_image_direct_prompt" data-cli-i18n="prompt">Prompt / additional guidance</label>
             <textarea id="cli_proxy_image_direct_prompt" class="text_pole" rows="4" placeholder="Enter a direct or LLM-expandable prompt, or optional guidance for an LLM context mode" data-cli-i18n-placeholder="prompt_placeholder"></textarea>
 
+            <label class="checkbox_label">
+                <input id="cli_proxy_image_direct_auto_generate" type="checkbox">
+                <span data-cli-i18n="auto_generate">Auto image after each character reply</span>
+            </label>
+            <div id="cli_proxy_image_direct_auto_options" hidden>
+                <div class="cli_proxy_image_direct_grid">
+                    <label>
+                        <span data-cli-i18n="auto_context_mode">Auto prompt source</span>
+                        <select id="cli_proxy_image_direct_auto_context_mode" class="text_pole">
+                            <option value="character" data-cli-i18n="prompt_mode_character">Current character</option>
+                            <option value="face" data-cli-i18n="prompt_mode_face">Current character face</option>
+                            <option value="scene" data-cli-i18n="prompt_mode_scene">Current scene / whole story</option>
+                            <option value="last" data-cli-i18n="prompt_mode_last">Visual details from the last message</option>
+                            <option value="user" data-cli-i18n="prompt_mode_user">User appearance</option>
+                            <option value="background" data-cli-i18n="prompt_mode_background">Background / environment</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span data-cli-i18n="auto_cooldown">Auto cooldown</span>
+                        <select id="cli_proxy_image_direct_auto_cooldown" class="text_pole">
+                            <option value="0" data-cli-i18n="auto_cooldown_off">Off</option>
+                            <option value="15">15s</option>
+                            <option value="30">30s</option>
+                            <option value="60">60s</option>
+                            <option value="120">120s</option>
+                            <option value="300">300s</option>
+                            <option value="600">600s</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="checkbox_label">
+                    <input id="cli_proxy_image_direct_auto_first_message" type="checkbox">
+                    <span data-cli-i18n="auto_first_message">Also generate when a chat opens (first message)</span>
+                </label>
+                <small data-cli-i18n="auto_hint">Every character reply triggers one text-model call plus one image request. Failed auto generations are skipped with a single warning and are never retried.</small>
+            </div>
+
             <div class="flex-container cli_proxy_image_direct_generation_actions">
                 <button id="cli_proxy_image_direct_generate" class="menu_button" type="button" data-cli-i18n="generate">Generate</button>
                 <button id="cli_proxy_image_direct_cancel" class="menu_button" type="button" disabled data-cli-i18n="cancel">Cancel</button>

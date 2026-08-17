@@ -36,6 +36,25 @@ const MODELS = [
     'grok-imagine-image-pro',
 ];
 
+const AUTO_CONTEXT_MODES = [
+    'character',
+    'face',
+    'scene',
+    'last',
+    'user',
+    'background',
+];
+
+const AUTO_COOLDOWN_OPTIONS = [
+    '0',
+    '15',
+    '30',
+    '60',
+    '120',
+    '300',
+    '600',
+];
+
 test('settings offer every requested common image size exactly once', async () => {
     const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
 
@@ -71,4 +90,28 @@ test('prompt source selector offers exactly the nine supported context modes', a
         .map((match) => match[1]);
 
     assert.deepEqual(optionValues, CONTEXT_MODES);
+});
+
+test('auto generation toggle, collapsed options block, and both auto selects exist', async () => {
+    const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
+
+    assert.match(settingsHtml, /<input\s+id="cli_proxy_image_direct_auto_generate"\s+type="checkbox">/);
+    assert.match(settingsHtml, /<div\s+id="cli_proxy_image_direct_auto_options"\s+hidden>/);
+    assert.match(settingsHtml, /<input\s+id="cli_proxy_image_direct_auto_first_message"\s+type="checkbox">/);
+
+    const autoModeSelect = settingsHtml.match(
+        /<select\s+id="cli_proxy_image_direct_auto_context_mode"[^>]*>([\s\S]*?)<\/select>/,
+    );
+    assert.ok(autoModeSelect, 'expected the auto prompt source selector');
+    const autoModeValues = [...autoModeSelect[1].matchAll(/<option\s+value="([^"]+)"/g)]
+        .map((match) => match[1]);
+    assert.deepEqual(autoModeValues, AUTO_CONTEXT_MODES);
+
+    const cooldownSelect = settingsHtml.match(
+        /<select\s+id="cli_proxy_image_direct_auto_cooldown"[^>]*>([\s\S]*?)<\/select>/,
+    );
+    assert.ok(cooldownSelect, 'expected the auto cooldown selector');
+    const cooldownValues = [...cooldownSelect[1].matchAll(/<option\s+value="([^"]+)"/g)]
+        .map((match) => match[1]);
+    assert.deepEqual(cooldownValues, AUTO_COOLDOWN_OPTIONS);
 });

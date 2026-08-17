@@ -33,6 +33,13 @@ import {
     normalizeContextMode,
     resolveContextPrompt,
 } from './context.js';
+import {
+    DEFAULT_AUTO_COOLDOWN_SECONDS,
+    DEFAULT_AUTO_CONTEXT_MODE,
+    isAutoGenerationEligible,
+    normalizeAutoContextMode,
+    normalizeAutoCooldownSeconds,
+} from './auto.js';
 
 const MODULE_NAME = 'cli_proxy_image_direct';
 const EXTENSION_FOLDER = decodeURIComponent(new URL('.', import.meta.url).pathname.split('/').filter(Boolean).at(-1));
@@ -51,7 +58,12 @@ const DEFAULT_SETTINGS = Object.freeze({
     quality: 'low',
     output_format: 'png',
     context_mode: CONTEXT_MODES.FREE,
+    auto_generate: false,
+    auto_context_mode: DEFAULT_AUTO_CONTEXT_MODE,
+    auto_cooldown_seconds: DEFAULT_AUTO_COOLDOWN_SECONDS,
+    auto_first_message: false,
 });
+const AUTO_TRIGGER_DELAY_MS = 1000;
 const TRANSLATIONS = Object.freeze({
     en: {
         title: 'Custom Endpoint Image Generation',
@@ -102,6 +114,13 @@ const TRANSLATIONS = Object.freeze({
         prompt_source_hint: 'Direct and LLM-expanded modes require text below. Scene, last, character, face, user, and background use the current text model and accept optional guidance. Raw last ignores the text below.',
         prompt: 'Prompt / additional guidance',
         prompt_placeholder: 'Enter a direct or LLM-expandable prompt, or optional guidance for an LLM context mode',
+        auto_generate: 'Auto image after each character reply',
+        auto_context_mode: 'Auto prompt source',
+        auto_cooldown: 'Auto cooldown',
+        auto_cooldown_off: 'Off',
+        auto_first_message: 'Also generate when a chat opens (first message)',
+        auto_hint: 'Every character reply triggers one text-model call plus one image request. Failed auto generations are skipped with a single warning and are never retried.',
+        auto_failed: 'Auto image generation failed',
         generate: 'Generate',
         cancel: 'Cancel',
         test_connection: 'Test connection',
@@ -188,6 +207,13 @@ const TRANSLATIONS = Object.freeze({
         prompt_source_hint: '直接提示词和 LLM 扩写模式必须填写下方文字；场景、最后消息、角色、面部、用户和背景模式会调用当前文本模型，并接受可选的额外要求；原始最后消息模式会忽略下方文字。',
         prompt: '提示词 / 额外要求',
         prompt_placeholder: '输入直接提示词或待 LLM 扩写的提示词；LLM 上下文模式可填写额外要求',
+        auto_generate: '每次角色回复后自动生成图片',
+        auto_context_mode: '自动生图提示词来源',
+        auto_cooldown: '自动生图冷却时间',
+        auto_cooldown_off: '关闭',
+        auto_first_message: '打开聊天时的首条消息也自动生图',
+        auto_hint: '每条角色回复都会触发一次文本模型调用和一次图片请求；自动生成失败时仅提示一次并跳过，不会重试。',
+        auto_failed: '自动生图失败',
         generate: '生成图片',
         cancel: '取消',
         test_connection: '测试连接',
@@ -249,6 +275,8 @@ let generationInProgress = false;
 let activeGenerationController = null;
 let volatileApiKey = '';
 let registeredSlashCommand = null;
+let lastAutoGenerationAt = 0;
+let autoGenerationPending = false;
 
 function getLanguage() {
     const selected = String(getSettings().ui_language || 'auto').toLowerCase();
@@ -305,7 +333,15 @@ function getSettings() {
         if (error?.code !== CONTEXT_ERROR_CODES.INVALID_MODE) throw error;
         settings.context_mode = CONTEXT_MODES.FREE;
     }
-    if (settings.context_mode !== savedContextMode) saveSettingsDebounced();
+    const savedAutoContextMode = settings.auto_context_mode;
+    settings.auto_context_mode = normalizeAutoContextMode(savedAutoContextMode);
+    const savedAutoCooldownSeconds = settings.auto_cooldown_seconds;
+    settings.auto_cooldown_seconds = normalizeAutoCooldownSeconds(savedAutoCooldownSeconds);
+    if (settings.context_mode !== savedContextMode
+        || settings.auto_context_mode !== savedAutoContextMode
+        || settings.auto_cooldown_seconds !== savedAutoCooldownSeconds) {
+        saveSettingsDebounced();
+    }
     return settings;
 }
 
@@ -645,6 +681,40 @@ async function appendImageMessage(context, prompt, imageUrl, mode, sourcePrompt,
     }
 }
 
+function reportAutoGenerationError(error) {
+    console.warn('[cli-proxy-image-direct] Auto generation failed:', error);
+    const messageText = error instanceof Error ? error.message : String(error);
+    if (messageText === tr('chat_changed') || messageText === tr('generation_cancelled')) return;
+    toastr.warning(formatError(error), tr('auto_failed'), { escapeHtml: true });
+}
+
+function handleMessageReceivedForAutoGeneration(messageId, type) {
+    const settings = getSettings();
+    const chatMessage = getContext().chat?.[Number(messageId)];
+    if (!isAutoGenerationEligible({
+        enabled: settings.auto_generate,
+        busy: generationInProgress || autoGenerationPending,
+        type,
+        message: chatMessage,
+        now: Date.now(),
+        lastGenerationAt: lastAutoGenerationAt,
+        cooldownSeconds: settings.auto_cooldown_seconds,
+        allowFirstMessage: settings.auto_first_message,
+    })) return;
+
+    // Let the character reply finish its post-processing before the quiet
+    // prompt call, and drop the trigger if the chat is switched meanwhile.
+    const chatId = getCurrentChatId();
+    lastAutoGenerationAt = Date.now();
+    autoGenerationPending = true;
+    setTimeout(() => {
+        autoGenerationPending = false;
+        if (generationInProgress || getCurrentChatId() !== chatId) return;
+        generateAndPost('', { mode: getSettings().auto_context_mode })
+            .catch(reportAutoGenerationError);
+    }, AUTO_TRIGGER_DELAY_MS);
+}
+
 function setBusyState(isBusy, canCancel = false) {
     $('#cli_proxy_image_direct_generate').prop('disabled', isBusy);
     $('#cli_proxy_image_direct_prompt').prop('disabled', isBusy);
@@ -657,6 +727,10 @@ function updateModelControls() {
     $('#cli_proxy_image_direct_quality').prop('disabled', isGrok);
     $('#cli_proxy_image_direct_format').prop('disabled', isGrok);
     $('#cli_proxy_image_direct_grok_hint').prop('hidden', !isGrok);
+}
+
+function updateAutoControls() {
+    $('#cli_proxy_image_direct_auto_options').prop('hidden', !getSettings().auto_generate);
 }
 
 function setStatus(message, className = '') {
@@ -798,6 +872,23 @@ function bindSettings() {
         settings.context_mode = resolveContextMode($(this).val());
         saveSettingsDebounced();
     });
+    $('#cli_proxy_image_direct_auto_generate').prop('checked', settings.auto_generate).on('change', function () {
+        settings.auto_generate = Boolean($(this).prop('checked'));
+        saveSettingsDebounced();
+        updateAutoControls();
+    });
+    $('#cli_proxy_image_direct_auto_context_mode').val(settings.auto_context_mode).on('change', function () {
+        settings.auto_context_mode = normalizeAutoContextMode(String($(this).val()));
+        saveSettingsDebounced();
+    });
+    $('#cli_proxy_image_direct_auto_cooldown').val(String(settings.auto_cooldown_seconds)).on('change', function () {
+        settings.auto_cooldown_seconds = normalizeAutoCooldownSeconds(Number($(this).val()));
+        saveSettingsDebounced();
+    });
+    $('#cli_proxy_image_direct_auto_first_message').prop('checked', settings.auto_first_message).on('change', function () {
+        settings.auto_first_message = Boolean($(this).prop('checked'));
+        saveSettingsDebounced();
+    });
     $('#cli_proxy_image_direct_test').on('click', testConnection);
     $('#cli_proxy_image_direct_cancel').on('click', () => activeGenerationController?.abort());
     $('#cli_proxy_image_direct_generate').on('click', async () => {
@@ -813,6 +904,7 @@ function bindSettings() {
         }
     });
     updateModelControls();
+    updateAutoControls();
 }
 
 function registerSlashCommand() {
@@ -864,4 +956,5 @@ jQuery(async () => {
     applyTranslations();
     registerSlashCommand();
     refreshConfigurationStatus();
+    eventSource.on(event_types.MESSAGE_RECEIVED, handleMessageReceivedForAutoGeneration);
 });
