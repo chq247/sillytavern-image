@@ -27,6 +27,15 @@ const CONTEXT_MODES = [
     'background',
 ];
 
+const MODELS = [
+    'gpt-image-2',
+    'gpt-image-1.5',
+    'codex/gpt-image-2',
+    'codex/gpt-image-1.5',
+    'grok-imagine-image',
+    'grok-imagine-image-pro',
+];
+
 test('settings offer every requested common image size exactly once', async () => {
     const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
 
@@ -34,6 +43,20 @@ test('settings offer every requested common image size exactly once', async () =
         const matches = settingsHtml.match(new RegExp(`<option value="${size}"`, 'g')) || [];
         assert.equal(matches.length, 1, `expected one option for ${size}`);
     }
+});
+
+test('model selector offers the gpt-image and grok image models exactly once', async () => {
+    const settingsHtml = await readFile(new URL('./settings.html', import.meta.url), 'utf8');
+    const selector = settingsHtml.match(
+        /<select\s+id="cli_proxy_image_direct_model"[^>]*>([\s\S]*?)<\/select>/,
+    );
+
+    assert.ok(selector, 'expected the model selector');
+
+    const optionValues = [...selector[1].matchAll(/<option\s+value="([^"]+)"/g)]
+        .map((match) => match[1]);
+
+    assert.deepEqual(optionValues, MODELS);
 });
 
 test('prompt source selector offers exactly the nine supported context modes', async () => {

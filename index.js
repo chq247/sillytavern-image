@@ -20,7 +20,9 @@ import { saveBase64AsFile } from '../../../utils.js';
 import {
     buildApiUrl,
     buildAuthHeaders,
+    buildGenerationRequestBody,
     describeApiError,
+    isGrokImageModel,
     normalizeGenerationResponse,
 } from './api.js';
 import {
@@ -86,6 +88,7 @@ const TRANSLATIONS = Object.freeze({
         quality_high: 'High',
         quality_auto: 'Auto',
         format: 'Format',
+        grok_hint: 'Grok image models convert the selected size into an aspect ratio (1k/2k resolution) and ignore Quality and Format.',
         prompt_source: 'Prompt source',
         prompt_mode_free: 'Direct prompt',
         prompt_mode_extend: 'LLM-expanded prompt',
@@ -122,7 +125,7 @@ const TRANSLATIONS = Object.freeze({
         plaintext_warning: 'Warning: the key and prompts will cross the network over plaintext HTTP.',
         configuration_ready: 'Configuration is ready. Use Test connection to verify it.',
         testing_connection: 'Testing custom endpoint connection...',
-        connected_no_models: 'Connected, but no gpt-image model was advertised.',
+        connected_no_models: 'Connected, but no gpt-image or grok image model was advertised.',
         connected_models: 'Connected. Image models: {models}',
         connection_timeout: 'Connection test timed out.',
         browser_request_failed: 'Browser request failed. Check CORS, HTTPS, URL, and network access.',
@@ -171,6 +174,7 @@ const TRANSLATIONS = Object.freeze({
         quality_high: '高',
         quality_auto: '自动',
         format: '图片格式',
+        grok_hint: 'grok 生图模型会将所选“图片尺寸”换算为宽高比（1k/2k 分辨率），并忽略“图片质量”和“图片格式”。',
         prompt_source: '提示词来源',
         prompt_mode_free: '直接提示词',
         prompt_mode_extend: '由 LLM 扩写提示词',
@@ -207,7 +211,7 @@ const TRANSLATIONS = Object.freeze({
         plaintext_warning: '警告：密钥和提示词将通过明文 HTTP 在网络上传输。',
         configuration_ready: '配置已就绪，请点击“测试连接”进行验证。',
         testing_connection: '正在测试自定义端点连接……',
-        connected_no_models: '连接成功，但模型列表中没有 gpt-image 模型。',
+        connected_no_models: '连接成功，但模型列表中没有 gpt-image 或 grok 生图模型。',
         connected_models: '连接成功。图片模型：{models}',
         connection_timeout: '连接测试超时。',
         browser_request_failed: '浏览器请求失败。请检查 CORS、HTTPS、地址和网络连接。',
@@ -373,21 +377,14 @@ async function requestImage(prompt) {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             },
-            body: JSON.stringify({
-                prompt,
-                model: settings.model,
-                size: settings.size,
-                quality: settings.quality,
-                output_format: settings.output_format,
-                n: 1,
-                response_format: 'b64_json',
-            }),
+            body: JSON.stringify(buildGenerationRequestBody(settings, prompt)),
             signal: controller.signal,
         });
 
         const payload = await readJsonResponse(response);
         if (!response.ok) throw new Error(describeApiError(payload, response.status));
-        return normalizeGenerationResponse(payload, settings.output_format);
+        const fallbackFormat = isGrokImageModel(settings.model) ? 'jpeg' : settings.output_format;
+        return normalizeGenerationResponse(payload, fallbackFormat);
     } catch (error) {
         if (error?.name === 'AbortError') {
             throw new Error(tr('generation_cancelled'));
@@ -655,6 +652,13 @@ function setBusyState(isBusy, canCancel = false) {
     $('#cli_proxy_image_direct_cancel').prop('disabled', !isBusy || !canCancel);
 }
 
+function updateModelControls() {
+    const isGrok = isGrokImageModel(getSettings().model);
+    $('#cli_proxy_image_direct_quality').prop('disabled', isGrok);
+    $('#cli_proxy_image_direct_format').prop('disabled', isGrok);
+    $('#cli_proxy_image_direct_grok_hint').prop('hidden', !isGrok);
+}
+
 function setStatus(message, className = '') {
     $('#cli_proxy_image_direct_status')
         .text(message)
@@ -713,7 +717,7 @@ async function testConnection() {
         const modelIds = Array.isArray(payload?.data)
             ? payload.data.map(model => String(model?.id || '')).filter(Boolean)
             : [];
-        const imageModels = modelIds.filter(id => /^(?:codex\/)?gpt-image-/i.test(id));
+        const imageModels = modelIds.filter(id => /^(?:codex\/)?gpt-image-|^grok-(?:imagine-image|2-image)/i.test(id));
         if (!imageModels.length) {
             setStatus(tr('connected_no_models'), 'warning');
             return;
@@ -776,6 +780,7 @@ function bindSettings() {
     $('#cli_proxy_image_direct_model').val(settings.model).on('change', function () {
         settings.model = String($(this).val());
         saveSettingsDebounced();
+        updateModelControls();
     });
     $('#cli_proxy_image_direct_size').val(settings.size).on('change', function () {
         settings.size = String($(this).val());
@@ -807,6 +812,7 @@ function bindSettings() {
             );
         }
     });
+    updateModelControls();
 }
 
 function registerSlashCommand() {

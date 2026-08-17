@@ -1,5 +1,21 @@
 const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
 const SUPPORTED_FORMATS = new Set(['png', 'jpeg', 'webp']);
+const GROK_IMAGINE_RESOLUTION_THRESHOLD = 1296 * 864;
+const GROK_ASPECT_RATIOS = new Map([
+    ['1:1', 1],
+    ['3:4', 3 / 4],
+    ['4:3', 4 / 3],
+    ['9:16', 9 / 16],
+    ['16:9', 16 / 9],
+    ['2:3', 2 / 3],
+    ['3:2', 3 / 2],
+    ['9:19.5', 9 / 19.5],
+    ['19.5:9', 19.5 / 9],
+    ['9:20', 9 / 20],
+    ['20:9', 20 / 9],
+    ['1:2', 1 / 2],
+    ['2:1', 2 / 1],
+]);
 
 export function buildApiUrl(baseUrl, resource) {
     let url;
@@ -37,6 +53,68 @@ export function buildAuthHeaders(apiKey, authMode = 'x-api-key') {
     if (authMode === 'x-api-key') return { 'x-api-key': key };
     if (authMode === 'bearer') return { Authorization: `Bearer ${key}` };
     throw new Error('Authentication mode must be x-api-key or bearer.');
+}
+
+export function isGrokImageModel(model) {
+    return /^grok/i.test(String(model || '').trim());
+}
+
+export function isGrokImagineModel(model) {
+    return /grok-imagine/i.test(String(model || '').trim());
+}
+
+function parseImageSize(size) {
+    const match = /^(\d+)\s*x\s*(\d+)$/i.exec(String(size || '').trim());
+    if (!match) return { width: 1024, height: 1024 };
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        return { width: 1024, height: 1024 };
+    }
+    return { width, height };
+}
+
+export function getGrokAspectRatio(size) {
+    const { width, height } = parseImageSize(size);
+    const aspectRatio = width / height;
+    let closest = '1:1';
+    let minDiff = Number.POSITIVE_INFINITY;
+    for (const [label, ratio] of GROK_ASPECT_RATIOS) {
+        const diff = Math.abs(aspectRatio - ratio);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = label;
+        }
+    }
+    return closest;
+}
+
+export function getGrokResolution(size) {
+    const { width, height } = parseImageSize(size);
+    return width * height > GROK_IMAGINE_RESOLUTION_THRESHOLD ? '2k' : '1k';
+}
+
+export function buildGenerationRequestBody(settings, prompt) {
+    const model = String(settings?.model || '').trim();
+    const body = {
+        prompt: String(prompt || ''),
+        model,
+        response_format: 'b64_json',
+    };
+
+    if (isGrokImageModel(model)) {
+        if (isGrokImagineModel(model)) {
+            body.aspect_ratio = getGrokAspectRatio(settings?.size);
+            body.resolution = getGrokResolution(settings?.size);
+        }
+        return body;
+    }
+
+    body.size = settings?.size;
+    body.quality = settings?.quality;
+    body.output_format = settings?.output_format;
+    body.n = 1;
+    return body;
 }
 
 export function normalizeGenerationResponse(payload, fallbackFormat = 'png') {

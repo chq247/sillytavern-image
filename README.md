@@ -5,15 +5,16 @@
 
 该仓库可直接通过 SillyTavern 的 **Extensions → Install Extension** 使用 Git URL 安装。
 
-- 当前扩展版本：`1.2.0`
+- 当前扩展版本：`1.3.0`
 - 最低 SillyTavern 版本：`1.18.0`
 - 安装地址：`https://github.com/chq247/sillytavern-image.git`
 
 ## 功能
 
 - `gpt-image-2` / `gpt-image-1.5`
-- PNG、JPEG、WebP
-- 13 个尺寸选项，覆盖 1:1、2:3、3:2、16:9、9:16（实际支持取决于自定义端点）
+- grok 生图模型：`grok-imagine-image` / `grok-imagine-image-pro`
+- PNG、JPEG、WebP（gpt-image 系列）
+- 13 个尺寸选项，覆盖 1:1、2:3、3:2、16:9、9:16（实际支持取决于自定义端点）；grok 模型会将所选尺寸自动换算为最接近的宽高比，并按面积选择 1k/2k 分辨率，"图片质量"与"图片格式"对 grok 模型不生效
 - 9 种提示词来源：直接提示词、LLM 扩写、当前场景、最后消息、原始最后消息、当前角色、角色面部、用户形象、背景环境
 - `/plus-image [mode=<提示词来源>] [额外要求]` 斜杠命令
 - 生成结果自动保存到当前角色或群组图库并插入聊天
@@ -51,8 +52,8 @@ https://proxy.example/v1
 ## CLIProxyAPI 要求
 
 - 建议 CLIProxyAPI `v7.2.131` 或更新版本。
-- `/v1/models` 应列出 `gpt-image-2` 或 `gpt-image-1.5`。
-- `/v1/images/generations` 必须支持 `response_format: b64_json`。
+- `/v1/models` 应列出 `gpt-image-2`、`gpt-image-1.5` 或 grok 生图模型（如 `grok-imagine-image`）。
+- `/v1/images/generations` 必须支持 `response_format: b64_json`；grok 模型走 `aspect_ratio` + `resolution` 参数，不支持 `size`/`quality`/`output_format`。
 - 必须允许浏览器 CORS 预检使用 `POST/GET/OPTIONS`、`Content-Type` 和 `x-api-key`。
 - `disable-image-generation` 不能设为 `true`。
 
